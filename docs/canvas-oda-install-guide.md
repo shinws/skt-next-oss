@@ -1,490 +1,398 @@
-# Canvas ODA 설치 가이드
+개요
+이 가이드는 Kubernetes 클러스터에 ODA Canvas를 설치하고 구성하는 전체 과정을 설명합니다. ODA Canvas는 TMF(TM Forum) ODA 표준을 기반으로 하는 마이크로서비스 기반 플랫폼이며, Istio 서비스 메시시 위에서 동작합니다.
 
-Oracle Digital Assistant(ODA) Web SDK를 활용하여 Canvas 채팅 위젯을 웹 애플리케이션에 통합하는 설치 가이드입니다.
+필수 요구사항:
 
----
+Kubernetes 클러스터 (1.20 이상)
+kubectl 설치 및 클러스터 접근 권한
+Helm 3.0 이상
+1단계: Helm Repository 추가
+설치에 필요한 Helm 리포지토리를 추가합니다.
+ 
+ 
+bash
 
-## 목차
+# ODA Canvas
+helm repo add oda-canvas https://tmforum-oda.github.io/oda-canvas
 
-1. [사전 요구사항](#1-사전-요구사항)
-2. [ODA 인스턴스 설정](#2-oda-인스턴스-설정)
-3. [채널 생성 및 구성](#3-채널-생성-및-구성)
-4. [Web SDK 설치](#4-web-sdk-설치)
-5. [Canvas 위젯 초기화](#5-canvas-위젯-초기화)
-6. [커스터마이징](#6-커스터마이징)
-7. [보안 설정](#7-보안-설정)
-8. [배포](#8-배포)
-9. [문제 해결](#9-문제-해결)
+# Cert-Manager (Istio TLS 인증서 관리)
+helm repo add jetstack https://charts.jetstack.io
 
----
+# Bitnami (일반 애플리케이션)
+helm repo add bitnami https://charts.bitnami.com/bitnami
 
-## 1. 사전 요구사항
+# 리포지토리 업데이트
+helm repo update
+2단계: Istio 설치 및 구성
+ODA Canvas는 Istio 서비스 메시를 기반으로 동작하므로 먼저 Istio를 설치해야 합니다.
 
-### ODA 환경
+2.1 Istio Helm Repository 추가
 
-| 항목 | 요구사항 |
-|------|---------|
-| Oracle Cloud 계정 | ODA 서비스 접근 권한이 있는 Oracle Cloud 계정 |
-| ODA 인스턴스 | 프로비저닝 완료된 ODA 인스턴스 |
-| ODA 버전 | 21.04 이상 권장 |
+ 
+ 
+bash
 
-### 개발 환경
+helm repo add istio https://istio-release.storage.googleapis.com/charts
+helm repo update
+2.2 Istio 기본 구성 요소 설치
+
+ 
+ 
+bash
+
+# istio-system 네임스페이스 생성
+kubectl create namespace istio-system
+
+# Istio base 설치
+helm install istio-base istio/base -n istio-system
+
+# Istiod (Istio 제어 플레인) 설치
+helm install istiod istio/istiod -n istio-system --wait
+2.3 Istio Ingress Gateway 설치
+
+ 
+ 
+bash
+
+# istio-ingress 네임스페이스 생성
+kubectl create namespace istio-ingress
+
+# Sidecar 자동 주입 활성화
+kubectl label namespace istio-ingress istio-injection=enabled
+
+# Istio Gateway 설치
+helm install istio-ingress istio/gateway -n istio-ingress \
+  --set labels.app=istio-ingress \
+  --set labels.istio=ingressgateway \
+  --wait
+
+
+2.4 Istio 설치 확인
+
+ 
+ 
+bash
+
+kubectl get pods -n istio-system
+kubectl get pods -n istio-ingress
+모든 포드가 Running 상태인지 확인합니다.
+
+3단계: ODA Canvas 설치
+3.1 Canvas 네임스페이스 생성
+
+ 
+ 
+bash
+
+kubectl create namespace canvas
+3.2 Canvas 기본 설치
+기본 설정으로 설치하는 가장 간단한 방법입니다.
+ 
+ 
+bash
+
+helm install canvas oda-canvas/canvas-oda -n canvas --create-namespace
+
+3.3 사용자 정의 설치 (옵션)
+values.yaml을 다운로드하여 수정한 후 설치할 수 있습니다.
+ 
+ 
+bash
+
+# 기본 values.yaml 다운로드
+helm show values oda-canvas/canvas-oda > values.yaml
+
+# values.yaml 편집
+# (필요한 설정 수정)
+
+# 사용자 정의 설정으로 설치
+helm install canvas oda-canvas/canvas-oda -n canvas \
+  --create-namespace \
+  -f values.yaml
+주요 수정 사항:
 
-| 항목 | 요구사항 |
-|------|---------|
-| Node.js | v16.x 이상 |
-| npm / yarn | npm v8.x 이상 또는 yarn v1.22.x 이상 |
-| 웹 브라우저 | Chrome, Firefox, Safari, Edge 최신 버전 |
-| HTTPS | 프로덕션 환경에서 필수 |
+Vault 통합 (선택사항 - PoC에서는 일반적으로 비활성화)
+외부 Keycloak 연동
+데이터베이스 설정
+리소스 할당
+3.4 ODA Canvas 설치 상태 확인
+
+ 
+ 
+bash
 
----
+# Pod 상태 확인
+kubectl get pods -n canvas
 
-## 2. ODA 인스턴스 설정
+# Service 확인
+kubectl get svc -n canvas
+예상되는 주요 컴포넌트:
 
-### 2.1 ODA 인스턴스 프로비저닝
+api-operator-istio: API 연산자
+canvas-depapi-op-*: 의존성 API 연산자
+canvas-info-service: 정보 서비스
+canvas-keycloak-*: Keycloak 인증 서비스
+canvas-pdb-management-operator-*: PDB 관리 연산자
+canvas-postgresql-*: PostgreSQL 데이터베이스
+canvas-resource-inventory-*: 리소스 인벤토리
+canvas-smanop-*: 시크릿 관리 연산자 (Vault 미활성화 시 ConfigError 발생)
+component-operator-*: 컴포넌트 연산자
+identityconfig-operator-keycloak-*: ID 설정 연산자
+주의: Vault를 활성화하지 않으면 canvas-smanop 포드에 CreateContainerConfigError가 발생하지만, PoC 환경에서는 무시해도 됩니다.
 
-1. [Oracle Cloud Console](https://cloud.oracle.com)에 로그인합니다.
-2. 좌측 메뉴에서 **Analytics & AI > Digital Assistant**를 선택합니다.
-3. **Create Digital Assistant Instance**를 클릭합니다.
-4. 아래 정보를 입력합니다:
+4단계: ODA Canvas CRD 확인
+ODA Canvas는 다음의 Custom Resource Definition(CRD)을 정의합니다.
+ 
+ 
+bash
 
-   | 필드 | 값 |
-   |------|-----|
-   | Name | 인스턴스 이름 (예: `skt-canvas-oda`) |
-   | Compartment | 사용할 Compartment 선택 |
-   | Shape | Development 또는 Production |
+kubectl get crd | grep oda
 
-5. **Create**를 클릭하고 프로비저닝이 완료될 때까지 대기합니다. (약 15-30분 소요)
+설치되어야 하는 CRD:
 
-### 2.2 Skill 생성
+components.oda.tmforum.org - 컴포넌트 정의
+exposedapis.oda.tmforum.org - 노출된 API
+dependentapis.oda.tmforum.org - 의존 API
+identityconfigs.oda.tmforum.org - ID 설정
+secretsmanagements.oda.tmforum.org - 시크릿 관리
+publishednotifications.oda.tmforum.org - 발행된 알림
+subscribednotifications.oda.tmforum.org - 구독된 알림
+availabilitypolicies.availability.oda.tmforum.org - 가용성 정책
+5단계: Canvas Portal 설치
+Canvas Portal은 ODA Canvas 관리 및 모니터링 대시보드입니다.
 
-1. ODA 인스턴스 콘솔에 접속합니다.
-2. 좌측 메뉴에서 **Skills**를 선택합니다.
-3. **+ New Skill**을 클릭하여 새 Skill을 생성합니다.
-4. Skill 이름과 버전을 입력합니다.
+5.1 Canvas Portal 차트 가져오기
 
----
+ 
+ 
+bash
 
-## 3. 채널 생성 및 구성
+# 공식 또는 사용자 정의 Canvas Portal Helm 차트 가져오기
+# 우선 oda-canvas 전체
 
-### 3.1 Oracle Web 채널 생성
+git clone <canvas-portal-repository>
 
-1. ODA 콘솔에서 좌측 메뉴의 **Channels**를 선택합니다.
-2. **+ Add Channel**을 클릭합니다.
-3. 아래와 같이 구성합니다:
+git clone https://github.com/tmforum-oda/oda-canvas.git
+cd canvas-portal/charts
+5.2 Canvas Portal 설치
+주의: Canvas Portal 이미지 버전에 따라 지원되는 CRD 버전이 다를 수 있습니다. 최신 버전의 표준 CRD와 호환되는 이미지를 사용하십시오.
+ 
 
-   | 필드 | 값 |
-   |------|-----|
-   | Name | 채널 이름 (예: `canvas-web-channel`) |
-   | Channel Type | **Oracle Web** |
-   | Allowed Domains | 위젯을 사용할 도메인 (예: `*.example.com`) |
-   | Client Authentication Enabled | 보안 요구사항에 따라 설정 |
+helm install canvas-portal ./ -f values.yaml \
+  -n canvas \
+  --set imageCredentials.username=<your-username> \
+  --set imageCredentials.password=<your-token>
+default : pAssw0rd
+values.yaml 수정 항목:
 
-4. **Create**를 클릭합니다.
-
-### 3.2 채널 정보 확인
-
-채널 생성 후 아래 정보를 기록합니다. SDK 초기화에 필요합니다.
-
-- **Channel ID**: 채널 고유 식별자
-- **ODA URI**: ODA 인스턴스의 URI (예: `oda-xxxxxxx-xx.data.digitalassistant.oci.oraclecloud.com`)
-
-### 3.3 채널 라우팅
-
-1. 채널 상세 페이지에서 **Route To** 항목에서 연결할 Skill 또는 Digital Assistant를 선택합니다.
-2. **Channel Enabled** 토글을 활성화합니다.
-
----
-
-## 4. Web SDK 설치
-
-### 4.1 CDN 방식 (권장 - 빠른 시작)
-
-HTML 파일의 `<head>` 태그 안에 아래 스크립트를 추가합니다:
-
-```html
-<script src="https://cdn.oracle.com/oda/latest/web-sdk.js"></script>
-```
-
-특정 버전을 사용하려면:
-
-```html
-<script src="https://cdn.oracle.com/oda/24.06/web-sdk.js"></script>
-```
-
-### 4.2 npm 패키지 방식
-
-```bash
-npm install @anthropic/oda-web-sdk
-```
-
-또는 Oracle 제공 패키지:
-
-```bash
-npm install @oracle/bots-node-sdk
-```
-
-### 4.3 수동 다운로드 방식
-
-1. [Oracle ODA Downloads](https://docs.oracle.com/en/cloud/paas/digital-assistant/sdks.html)에서 Web SDK를 다운로드합니다.
-2. 압축을 해제하고 프로젝트의 정적 파일 디렉토리에 배치합니다:
-
-```
-project/
-├── public/
-│   └── scripts/
-│       └── web-sdk.js
-├── src/
-└── ...
-```
-
----
-
-## 5. Canvas 위젯 초기화
-
-### 5.1 기본 초기화
-
-```html
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Canvas ODA</title>
-</head>
-<body>
-    <!-- ODA Web SDK -->
-    <script src="https://cdn.oracle.com/oda/latest/web-sdk.js"
-            onload="initODA()">
-    </script>
-
-    <script>
-        function initODA() {
-            var chatSettings = {
-                URI: 'oda-xxxxxxx-xx.data.digitalassistant.oci.oraclecloud.com',
-                channelId: 'your-channel-id-here',
-                enableAutocomplete: true,
-                enableBotAudioResponse: false,
-                enableClearMessage: true,
-                showConnectionStatus: true,
-                displayActionsAsPills: true,
-                i18n: {
-                    ko: {
-                        chatTitle: 'Canvas 어시스턴트',
-                        inputPlaceholder: '메시지를 입력하세요...',
-                        send: '전송'
-                    }
-                },
-                locale: 'ko'
-            };
-
-            Bots.init(chatSettings);
-        }
-    </script>
-</body>
-</html>
-```
-
-### 5.2 React/Next.js 프로젝트 통합
-
-```jsx
-// components/OdaChat.jsx
-import { useEffect, useRef } from 'react';
-
-const ODA_CONFIG = {
-  URI: process.env.NEXT_PUBLIC_ODA_URI,
-  channelId: process.env.NEXT_PUBLIC_ODA_CHANNEL_ID,
-};
-
-export default function OdaChat() {
-  const initialized = useRef(false);
-
-  useEffect(() => {
-    if (initialized.current) return;
-
-    const script = document.createElement('script');
-    script.src = 'https://cdn.oracle.com/oda/latest/web-sdk.js';
-    script.async = true;
-    script.onload = () => {
-      if (window.Bots) {
-        window.Bots.init({
-          ...ODA_CONFIG,
-          enableAutocomplete: true,
-          displayActionsAsPills: true,
-          i18n: {
-            ko: {
-              chatTitle: 'Canvas 어시스턴트',
-              inputPlaceholder: '메시지를 입력하세요...',
-            },
-          },
-          locale: 'ko',
-        });
-        initialized.current = true;
-      }
-    };
-
-    document.head.appendChild(script);
-
-    return () => {
-      if (document.head.contains(script)) {
-        document.head.removeChild(script);
-      }
-    };
-  }, []);
-
-  return null; // SDK가 자체적으로 위젯 UI를 렌더링합니다
-}
-```
-
-### 5.3 환경 변수 설정
-
-프로젝트 루트에 `.env.local` 파일을 생성합니다:
-
-```env
-# ODA Configuration
-NEXT_PUBLIC_ODA_URI=oda-xxxxxxx-xx.data.digitalassistant.oci.oraclecloud.com
-NEXT_PUBLIC_ODA_CHANNEL_ID=your-channel-id-here
-```
-
-> **주의:** `.env.local` 파일은 절대 Git에 커밋하지 마세요. `.gitignore`에 포함되어 있는지 확인하세요.
-
----
-
-## 6. 커스터마이징
-
-### 6.1 위젯 테마 설정
-
-```javascript
-var chatSettings = {
-    // ... 기본 설정 ...
-
-    colors: {
-        branding: '#E4002B',          // SKT 브랜드 컬러
-        text: '#212121',              // 텍스트 색상
-        textLight: '#757575',         // 보조 텍스트 색상
-        headerBackground: '#E4002B',  // 헤더 배경색
-        headerText: '#FFFFFF',        // 헤더 텍스트 색상
-        botMessageBackground: '#F5F5F5',
-        userMessageBackground: '#E4002B',
-        userMessageText: '#FFFFFF'
-    },
-
-    icons: {
-        logo: '/assets/images/canvas-logo.png',
-        avatarBot: '/assets/images/bot-avatar.png',
-        avatarUser: '/assets/images/user-avatar.png'
-    },
-
-    position: {
-        bottom: '20px',
-        right: '20px'
-    }
-};
-```
-
-### 6.2 위젯 크기 조정
-
-```css
-/* ODA 위젯 크기 커스터마이징 */
-.oda-chat-wrapper {
-    width: 400px !important;
-    height: 600px !important;
-}
-
-/* 모바일 반응형 */
-@media (max-width: 768px) {
-    .oda-chat-wrapper {
-        width: 100% !important;
-        height: 100% !important;
-        bottom: 0 !important;
-        right: 0 !important;
-    }
-}
-```
-
-### 6.3 커스텀 메시지 핸들러
-
-```javascript
-var chatSettings = {
-    // ... 기본 설정 ...
-
-    delegate: {
-        beforeDisplay: function(message) {
-            // 메시지 표시 전 가공
-            console.log('수신 메시지:', message);
-            return message;
-        },
-        beforeSend: function(message) {
-            // 메시지 전송 전 가공
-            return message;
-        },
-        beforePostbackSend: function(postback) {
-            // Postback 전송 전 처리
-            return postback;
-        }
-    }
-};
-```
-
----
-
-## 7. 보안 설정
-
-### 7.1 Client Authentication 활성화
-
-프로덕션 환경에서는 반드시 Client Authentication을 활성화해야 합니다.
-
-1. ODA 콘솔에서 채널 설정으로 이동합니다.
-2. **Client Authentication Enabled**를 `ON`으로 설정합니다.
-
-### 7.2 JWT 토큰 인증 구현
-
-서버 사이드에서 JWT 토큰을 생성하는 API를 구현합니다:
-
-```javascript
-// pages/api/oda-token.js (Next.js API Route)
-import jwt from 'jsonwebtoken';
-
-export default function handler(req, res) {
-    if (req.method !== 'POST') {
-        return res.status(405).json({ message: 'Method not allowed' });
-    }
-
-    const channelId = process.env.ODA_CHANNEL_ID;
-    const secretKey = process.env.ODA_SECRET_KEY;
-
-    const token = jwt.sign(
-        { channelId: channelId },
-        secretKey,
-        { expiresIn: '1h' }
-    );
-
-    res.status(200).json({ token });
-}
-```
-
-클라이언트에서 토큰을 사용하여 초기화:
-
-```javascript
-var chatSettings = {
-    URI: 'oda-xxxxxxx-xx.data.digitalassistant.oci.oraclecloud.com',
-    channelId: 'your-channel-id-here',
-    clientAuthEnabled: true,
-
-    // JWT 토큰 제공 함수
-    tokenGenerator: async function() {
-        const response = await fetch('/api/oda-token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await response.json();
-        return data.token;
-    }
-};
-```
-
-### 7.3 Allowed Domains 설정
-
-채널 설정에서 허용된 도메인만 지정하여 무단 접근을 방지합니다:
-
-```
-허용 도메인 예시:
-- https://www.example.com
-- https://app.example.com
-- https://staging.example.com
-```
-
----
-
-## 8. 배포
-
-### 8.1 배포 전 체크리스트
-
-- [ ] ODA 인스턴스가 Production Shape으로 설정되어 있는지 확인
-- [ ] Client Authentication이 활성화되어 있는지 확인
-- [ ] Allowed Domains에 프로덕션 도메인이 등록되어 있는지 확인
-- [ ] 환경 변수가 올바르게 설정되어 있는지 확인
-- [ ] HTTPS가 적용되어 있는지 확인
-- [ ] 에러 핸들링이 구현되어 있는지 확인
-- [ ] 브라우저 호환성 테스트 완료
-
-### 8.2 환경별 설정
-
-| 환경 | ODA URI | Client Auth | Allowed Domains |
-|------|---------|-------------|-----------------|
-| Development | dev-oda-instance | OFF (선택) | `localhost:3000` |
-| Staging | staging-oda-instance | ON | `staging.example.com` |
-| Production | prod-oda-instance | ON | `www.example.com` |
-
-### 8.3 Vercel 배포 (Next.js)
-
-```bash
-# 환경 변수 설정
-vercel env add NEXT_PUBLIC_ODA_URI
-vercel env add NEXT_PUBLIC_ODA_CHANNEL_ID
-vercel env add ODA_SECRET_KEY
-
-# 배포
-vercel --prod
-```
-
----
-
-## 9. 문제 해결
-
-### 일반적인 오류 및 해결 방법
-
-#### 위젯이 표시되지 않음
-
-```
-원인: SDK 스크립트 로딩 실패 또는 초기화 오류
-해결:
-1. 브라우저 개발자 도구 > Console에서 오류 메시지를 확인합니다.
-2. SDK URL이 올바른지 확인합니다.
-3. Content Security Policy(CSP)가 Oracle CDN을 차단하고 있지 않은지 확인합니다.
-```
-
-CSP 헤더에 아래 도메인을 허용합니다:
-
-```
-Content-Security-Policy:
-  script-src 'self' https://cdn.oracle.com;
-  connect-src 'self' wss://*.data.digitalassistant.oci.oraclecloud.com;
-```
-
-#### 연결 실패 (WebSocket 오류)
-
-```
-원인: ODA URI 또는 Channel ID가 잘못되었거나 채널이 비활성화 상태
-해결:
-1. ODA URI와 Channel ID를 다시 확인합니다.
-2. ODA 콘솔에서 채널이 Enabled 상태인지 확인합니다.
-3. 네트워크 방화벽이 WebSocket 연결을 차단하고 있지 않은지 확인합니다.
-```
-
-#### 인증 오류 (401/403)
-
-```
-원인: JWT 토큰 만료 또는 Secret Key 불일치
-해결:
-1. Secret Key가 ODA 콘솔의 값과 일치하는지 확인합니다.
-2. 토큰 만료 시간(expiresIn)을 확인합니다.
-3. 서버 시간이 올바른지 확인합니다. (시간 차이가 크면 토큰 검증 실패)
-```
-
-#### CORS 오류
-
-```
-원인: 허용되지 않은 도메인에서의 접근
-해결:
-1. ODA 채널 설정에서 Allowed Domains에 현재 도메인을 추가합니다.
-2. 프로토콜(http/https)을 포함한 전체 도메인을 입력합니다.
-```
-
----
-
-## 참고 자료
-
-- [Oracle Digital Assistant 공식 문서](https://docs.oracle.com/en/cloud/paas/digital-assistant/)
-- [ODA Web SDK Reference](https://docs.oracle.com/en/cloud/paas/digital-assistant/use-chatbot/web-channel.html)
-- [Oracle Web SDK GitHub](https://github.com/oracle/bots-node-sdk)
+이미지 레지스트리 및 태그
+Keycloak 연결 정보
+Canvas 백엔드 API 엔드포인트
+포탈 관리자 계정정보
+ 
+bash
+
+docker pull docker.io/wctdevops/canvas-portal:20240228 # 이미지 로컬에 다운
+
+kind load docker-image docker.io/wctdevops/canvas-portal:20240228 --name dev-cluster # kind 환경에 구축시 해당 이미지를 다시 kind로 전달
+
+kubectl -n canvas set image deployment/canvas-portal \\n  canvas-portal=wctdevops/canvas-portal:20240228  
+
+kubectl -n canvas patch deployment canvas-portal \\n  -p '{"spec":{"template":{"spec":{"containers":[{"name":"canvas-portal","imagePullPolicy":"Never"}]}}}}'\n  # helm배포한 상황에서 이미지 업데이트
+
+kubectl -n canvas rollout restart deployment/canvas-portal\n
+
+kubectl -n canvas get pod\
+
+
+
+5.3 Canvas Portal 접속 (개발 환경)
+개발 환경에서는 포트포워딩을 통해 접속합니다.
+ 
+ 
+bash
+
+kubectl port-forward -n canvas svc/canvas-portal 8080:8080
+브라우저에서 다음 주소로 접속합니다:
+ 
+ 
+
+http://localhost:8080/canvas-portal
+주의: 경로에 /canvas-portal을 명시적으로 포함해야 합니다.
+
+기본 로그인 정보는 values.yaml의 다음 항목을 참고합니다:
+
+env.portal.username - 포탈 사용자명
+env.portal.password - 포탈 비밀번호
+6단계: ODA 참고 컴포넌트 설치 (선택사항)
+TMF에서 제공하는 참고 컴포넌트를 설치하여 ODA Canvas의 동작을 확인할 수 있습니다.
+
+6.1 참고 컴포넌트 Helm Repository 추가
+
+ 
+ 
+bash
+
+helm repo add oda-components https://tmforum-oda.github.io/reference-example-components
+helm repo update
+6.2 사용 가능한 컴포넌트 확인
+
+ 
+ 
+bash
+
+helm search repo oda-components
+
+# 출력 예시:
+# NAME                                    CHART VERSION   APP VERSION   DESCRIPTION
+# oda-components/productcatalog           1.3.0           1.16.0        A reference example TMFC001-ProductCatalogManagement
+# oda-components/productinventory         1.2.0           1.16.0        A reference example TMFC005-ProductInventory
+6.3 참고 컴포넌트 설치
+
+ 
+ 
+bash
+
+# 컴포넌트 설치를 위한 네임스페이스 생성
+kubectl create namespace components
+
+# Product Inventory 설치
+helm install pi oda-components/productinventory -n components
+
+# Product Catalog 설치 (의존 API 활성화)
+helm install pc oda-components/productcatalog \
+  --set component.dependentAPIs.enabled=true \
+  -n components
+6.4 참고 컴포넌트 설치 확인
+
+ 
+ 
+bash
+
+kubectl get pods -n components
+kubectl get svc -n components
+6.5 컴포넌트 CRD 확인
+
+ 
+ 
+bash
+
+kubectl get components,exposedapis,dependentapis,identityconfigs -n components
+예상되는 출력:
+
+Components: pc-productcatalogmanagement, pi-productinventory
+ExposedAPIs: Product Catalog와 Product Inventory의 API 엔드포인트
+DependentAPIs: 컴포넌트 간의 API 의존성
+IdentityConfigs: Keycloak 통합 설정
+Canvas Portal 대시보드 확인
+Canvas Portal에 접속하면 다음 정보를 확인할 수 있습니다:
+
+대시보드 주요 메뉴
+ODA Status - 전체 시스템 상태
+Component Instances - 설치된 컴포넌트 목록
+Component Details - 선택된 컴포넌트의 상세 정보
+API 엔드포인트
+리소스 정보
+인스턴스 설정
+버전 히스토리
+API 엔드포인트 확인
+각 컴포넌트의 ExposedAPI를 통해 API 엔드포인트를 확인할 수 있습니다:
+ 
+ 
+bash
+
+kubectl get exposedapi -n components -o wide
+예시:
+
+https://172.20.0.3/pc-productcatalogmanagement/tmf-api/productCatalogManagement/v4
+https://172.20.0.3/pi-productinventory/tmf-api/productInventory/v4
+일반적인 문제 해결
+1. Pod가 CreateContainerConfigError 상태인 경우
+증상: canvas-smanop 포드가 CreateContainerConfigError 상태
+
+원인: Vault 설정이 필요하지만 PoC 환경에서 비활성화됨
+
+해결방법: values.yaml에서 Vault 통합을 비활성화하거나, Vault를 별도로 구성합니다.
+ 
+ 
+bash
+
+# 현재 상태 확인
+kubectl describe pod <pod-name> -n canvas
+2. ExposedAPI가 준비되지 않은 경우
+증상: ExposedAPI의 IMPLEMENTATION_READY 상태가 false
+
+확인:
+ 
+ 
+bash
+
+kubectl describe exposedapi <api-name> -n components
+kubectl logs <component-pod> -n components
+3. Keycloak 연결 문제
+Keycloak 포드가 실행 중인지 확인합니다:
+ 
+ 
+bash
+
+kubectl get pod -n canvas -l app=canvas-keycloak
+kubectl logs -n canvas <keycloak-pod-name>
+4. 포트포워딩이 작동하지 않는 경우
+
+ 
+ 
+bash
+
+# 서비스 확인
+kubectl get svc -n canvas canvas-portal
+
+# 포트포워딩 재시도
+kubectl port-forward -n canvas svc/canvas-portal 8080:8080 --address=0.0.0.0
+생산 환경 고려사항
+보안
+Vault를 사용하여 시크릿 관리
+TLS/SSL 인증서 설정
+RBAC 정책 구성
+NetworkPolicy를 통한 네트워크 격리
+성능 및 확장성
+각 컴포넌트의 리소스 요청/제한 조정
+자동 스케일링 설정 (HPA)
+데이터베이스 백업 전략
+로깅 및 모니터링 구성
+고가용성
+Pod Disruption Budget 설정
+다중 레플리카 구성
+외부 로드 밸런서 설정
+재해 복구 계획
+유용한 명령어
+
+ 
+ 
+bash
+
+# 모든 네임스페이스의 포드 상태 확인
+kubectl get pods -A
+
+# 특정 컴포넌트 로그 확인
+kubectl logs -n canvas -f <pod-name>
+
+# 컴포넌트 상세 정보 확인
+kubectl describe pod <pod-name> -n canvas
+
+# Canvas 네임스페이스의 모든 리소스 확인
+kubectl get all -n canvas
+
+# Helm 설치 상태 확인
+helm list -n canvas
+helm status canvas -n canvas
+
+# Helm 값 확인
+helm get values canvas -n canvas
+
+# Helm 설치 업그레이드
+helm upgrade canvas oda-canvas/canvas-oda -n canvas -f values.yaml
+참고 자료
+ODA Canvas GitHub: https://github.com/tmforum-oda/oda-canvas
+참고 컴포넌트: https://github.com/tmforum-oda/reference-example-components
+Istio 문서: https://istio.io/latest/docs/
+Helm 문서: https://helm.sh/docs/
