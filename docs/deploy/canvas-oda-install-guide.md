@@ -34,7 +34,7 @@ ODA Canvas를 설치하기 전에 먼저 Kubernetes 클러스터를 준비해야
 
 ### 방법 1: Rancher Desktop (권장)
 
-**Rancher Desktop은 프로덕션 환경과 개발 환경 모두에 권장되는 방법입니다.** Rancher Desktop은 컨테이너 관리와 Kubernetes를 위한 오픈소스 도구로, 더 나은 리소스 관리, 다양한 Kubernetes 배포 옵션, 그리고 강력한 클러스터 관리 기능을 제공합니다.
+**Rancher Desktop은 개발 및 테스트 환경에 권장되는 방법입니다.** Rancher Desktop은 컨테이너 관리와 Kubernetes를 위한 오픈소스 도구로, 더 나은 리소스 관리, 다양한 Kubernetes 배포 옵션, 그리고 강력한 클러스터 관리 기능을 제공합니다. 프로덕션 환경을 위해서는 관리형 Kubernetes 서비스나 전용 클러스터를 고려하시기 바랍니다.
 
 #### Rancher Desktop 설치
 
@@ -137,7 +137,7 @@ Rancher Desktop은 자동으로 localhost 포트 포워딩을 지원합니다. �
 
 ### 방법 2: Docker Desktop (대안)
 
-**Docker Desktop은 간단한 개발 환경이나 PoC를 위한 대안으로 사용할 수 있습니다.** 그러나 리소스 제약이 있거나 프로덕션에 가까운 환경이 필요한 경우 Rancher Desktop을 권장합니다.
+**Docker Desktop은 간단한 개발 환경이나 PoC를 위한 대안으로 사용할 수 있습니다.** 더 나은 리소스 관리와 Kubernetes 기능이 필요한 경우 Rancher Desktop을 권장합니다. 프로덕션 배포를 위해서는 관리형 Kubernetes 서비스를 사용하시기 바랍니다.
 
 #### Docker Desktop 설치
 
