@@ -5,7 +5,7 @@
 1. [개요](#개요)
 2. [필수 요구사항](#필수-요구사항)
 3. [Kubernetes 클러스터 설정](#kubernetes-클러스터-설정)
-   - [방법 1: Rancher (권장)](#방법-1-rancher-권장)
+   - [방법 1: Rancher Desktop (권장)](#방법-1-rancher-desktop-권장)
    - [방법 2: Docker Desktop (대안)](#방법-2-docker-desktop-대안)
 4. [1단계: Helm Repository 추가](#1단계-helm-repository-추가)
 5. [2단계: Istio 설치 및 구성](#2단계-istio-설치-및-구성)
@@ -32,11 +32,11 @@
 
 ODA Canvas를 설치하기 전에 먼저 Kubernetes 클러스터를 준비해야 합니다. 이 섹션에서는 두 가지 방법을 제공합니다:
 
-### 방법 1: Rancher (권장)
+### 방법 1: Rancher Desktop (권장)
 
-**Rancher는 프로덕션 환경과 개발 환경 모두에 권장되는 방법입니다.** Rancher Desktop은 컨테이너 관리와 Kubernetes를 위한 오픈소스 도구로, 더 나은 리소스 관리, 다양한 Kubernetes 배포 옵션, 그리고 강력한 클러스터 관리 기능을 제공합니다.
+**Rancher Desktop은 프로덕션 환경과 개발 환경 모두에 권장되는 방법입니다.** Rancher Desktop은 컨테이너 관리와 Kubernetes를 위한 오픈소스 도구로, 더 나은 리소스 관리, 다양한 Kubernetes 배포 옵션, 그리고 강력한 클러스터 관리 기능을 제공합니다.
 
-#### Rancher 설치
+#### Rancher Desktop 설치
 
 1. **Rancher Desktop 다운로드 및 설치**
 
@@ -115,7 +115,7 @@ ODA Canvas를 설치하기 전에 먼저 Kubernetes 클러스터를 준비해야
    kubectl delete namespace test-namespace
    ```
 
-#### Rancher 특정 구성 (선택사항)
+#### Rancher Desktop 특정 구성 (선택사항)
 
 **로컬 이미지 로드** (필요한 경우):
 
@@ -137,7 +137,7 @@ Rancher Desktop은 자동으로 localhost 포트 포워딩을 지원합니다. �
 
 ### 방법 2: Docker Desktop (대안)
 
-**Docker Desktop은 간단한 개발 환경이나 PoC를 위한 대안으로 사용할 수 있습니다.** 그러나 리소스 제약이 있거나 프로덕션에 가까운 환경이 필요한 경우 Rancher를 권장합니다.
+**Docker Desktop은 간단한 개발 환경이나 PoC를 위한 대안으로 사용할 수 있습니다.** 그러나 리소스 제약이 있거나 프로덕션에 가까운 환경이 필요한 경우 Rancher Desktop을 권장합니다.
 
 #### Docker Desktop 설치
 
