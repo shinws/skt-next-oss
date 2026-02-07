@@ -96,7 +96,7 @@ ODA Canvas를 설치하기 전에 먼저 Kubernetes 클러스터를 준비해야
    # macOS/Linux
    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
-   # Windows (PowerShell)
+   # Windows (Chocolatey를 사용하여 PowerShell에서 실행)
    # choco install kubernetes-helm
    ```
 
@@ -204,7 +204,7 @@ Rancher Desktop은 자동으로 localhost 포트 포워딩을 지원합니다. �
    # macOS (Homebrew)
    brew install helm
 
-   # Windows (Chocolatey)
+   # Windows (Chocolatey를 사용하여 PowerShell에서 실행)
    # choco install kubernetes-helm
 
    # Linux
@@ -237,7 +237,7 @@ docker images
 # macOS
 brew install kind
 
-# Windows
+# Windows (Chocolatey를 사용하여 PowerShell에서 실행)
 # choco install kind
 
 # Kind 클러스터 생성
