@@ -629,7 +629,6 @@ kubectl get exposedapi -n components -o wide
 **해결방법:** values.yaml에서 Vault 통합을 비활성화하거나, Vault를 별도로 구성합니다.
 
 ```bash
-```bash
 # 현재 상태 확인
 kubectl describe pod <pod-name> -n canvas
 ```
