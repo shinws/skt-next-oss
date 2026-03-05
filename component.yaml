@@ -1,0 +1,37 @@
+apiVersion: oda.tmforum.org/v1beta3
+kind: Component
+metadata:
+  name: resource-inventory
+  namespace: components
+spec:
+  version: "1.0.0"
+  description: "ODA Resource Inventory Management Component (TMF639 v4)"
+
+  maintainers:
+    - name: "OSS Development Team"
+      email: "dev@example.com"
+
+  coreFunction:
+    exposedAPIs:
+      - name: resourceInventoryManagement
+        apiType: openapi
+        specification:
+          - "https://tmforum-rand.github.io/TMF639-Resource-Inventory-Management"
+        implementation: resource-inventory-service
+        path: /tmf-api/resourceInventoryManagement/v4
+        port: 8081
+
+  eventNotification:
+    publishedEvents: []
+    subscribedEvents: []
+
+  managementFunction:
+    exposedAPIs:
+      - name: componentHealth
+        apiType: openapi
+        implementation: resource-inventory-service
+        path: /health
+        port: 8081
+
+  securityFunction:
+    exposedAPIs: []
