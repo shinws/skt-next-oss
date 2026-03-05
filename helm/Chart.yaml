@@ -1,0 +1,22 @@
+apiVersion: v2
+name: resource-inventory
+description: ODA Resource Inventory Management Component (TMF639)
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+
+keywords:
+  - oda
+  - tmf639
+  - resource-inventory
+  - osss
+
+maintainers:
+  - name: OSS Development Team
+    email: dev@example.com
+
+home: https://github.com/example/resource-inventory
+sources:
+  - https://github.com/example/resource-inventory
+
+dependencies: []

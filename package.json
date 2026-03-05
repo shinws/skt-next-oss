@@ -1,0 +1,32 @@
+{
+  "name": "determined-dewdney",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "dev": "node src/index.js",
+    "dev:watch": "nodemon src/index.js",
+    "start": "node src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "body-parser": "^2.2.2",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "mongoose": "^9.2.3",
+    "multer": "^1.4.4-lts.1",
+    "swagger-ui-express": "^4.6.3",
+    "xlsx": "^0.18.5",
+    "yaml": "^2.8.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}

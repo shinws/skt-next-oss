@@ -1,0 +1,772 @@
+openapi: 3.0.3
+info:
+  title: ODA Resource Inventory Management API
+  description: |
+    TMF639 v4 compliant REST API for managing network and infrastructure resources
+    in the ODA (Open Digital Architecture) Canvas environment.
+
+    This API supports full CRUD operations on resources, with features including:
+    - Pagination and filtering
+    - Multiple resource types (Physical and Logical)
+    - State management (operational, administrative, usage, lifecycle)
+    - Resource relationships and specifications
+    - TMF639 compliant responses
+
+  version: '1.0.0'
+  contact:
+    name: OSS Development Team
+    email: dev@example.com
+  x-api-id: resource-inventory
+  x-api-lifecycle: production
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: https://192.168.64.3
+    description: ODA Canvas production environment
+
+tags:
+  - name: Resources
+    description: Resource inventory management
+  - name: Health
+    description: Service health check
+
+paths:
+  /tmf-api/resourceInventoryManagement/v4/resource:
+    get:
+      summary: List resources
+      description: Retrieve a list of resources with pagination and filtering
+      operationId: listResources
+      tags:
+        - Resources
+      parameters:
+        - name: offset
+          in: query
+          description: Pagination offset (default 0)
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          example: 0
+
+        - name: limit
+          in: query
+          description: Number of items per page (default 10)
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+          example: 10
+
+        - name: resourceType
+          in: query
+          description: Filter by resource type
+          required: false
+          schema:
+            type: string
+            enum:
+              - Router
+              - Switch
+              - BTS
+              - OLT
+              - IP
+              - VLAN
+              - Circuit
+          example: Router
+
+        - name: lifecycleState
+          in: query
+          description: Filter by lifecycle state
+          required: false
+          schema:
+            type: string
+            enum:
+              - planning
+              - installing
+              - operating
+              - retiring
+          example: operating
+
+        - name: fields
+          in: query
+          description: Field selection (comma-separated field names)
+          required: false
+          schema:
+            type: string
+          example: id,name,resourceType,lifecycleState
+
+      responses:
+        '200':
+          description: Successful response with resource list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceList'
+
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      summary: Create a new resource
+      description: Create a new resource in the inventory
+      operationId: createResource
+      tags:
+        - Resources
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourceRequest'
+            examples:
+              physical:
+                summary: Physical Resource (Router)
+                value:
+                  name: Core Router 01
+                  description: Main core router in data center
+                  category: Physical
+                  resourceType: Router
+                  operationalState: enable
+                  administrativeState: unlocked
+                  usageState: active
+                  lifecycleState: operating
+                  place:
+                    id: LOC-001
+                    name: Data Center A
+                    role: Primary Site
+
+              logical:
+                summary: Logical Resource (VLAN)
+                value:
+                  name: VLAN-100
+                  description: Internal management VLAN
+                  category: Logical
+                  resourceType: VLAN
+                  operationalState: enable
+                  lifecycleState: operating
+
+      responses:
+        '201':
+          description: Resource created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resource'
+
+        '400':
+          description: Invalid request body or missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /tmf-api/resourceInventoryManagement/v4/resource/import:
+    post:
+      summary: Bulk import resources from Excel file
+      description: |
+        Upload an Excel file to import multiple resources in bulk.
+
+        Excel file requirements:
+        - Format: .xlsx or .xls
+        - Max size: 50MB
+        - First row must contain headers
+        - Required column: 장비명 (equipment name)
+
+        The API will:
+        1. Parse the Excel file
+        2. Map columns to Resource properties
+        3. Store extra columns in characteristic array
+        4. Perform validation
+        5. Bulk insert to MongoDB
+        6. Return import report
+      operationId: importResourcesFromExcel
+      tags:
+        - Resources
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Excel file (.xlsx or .xls)
+              required:
+                - file
+      responses:
+        '200':
+          description: Import completed (may contain partial success)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  imported:
+                    type: integer
+                    description: Number of successfully imported resources
+                    example: 150
+                  failed:
+                    type: integer
+                    description: Number of failed imports
+                    example: 2
+                  warnings:
+                    type: integer
+                    description: Number of validation warnings
+                    example: 5
+                  errors:
+                    type: array
+                    description: Array of error details (max 100)
+                    items:
+                      type: object
+                      properties:
+                        row:
+                          type: integer
+                          example: 5
+                        field:
+                          type: string
+                          example: 장비명
+                        error:
+                          type: string
+                          example: Required field missing
+                  importedIds:
+                    type: array
+                    description: List of created resource IDs
+                    items:
+                      type: string
+                    example: ['res-1709584000000-abc12345', 'res-1709584010000-def67890']
+                  processingTime:
+                    type: integer
+                    description: Processing time in milliseconds
+                    example: 2450
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: '2026-03-04T10:30:00Z'
+
+        '400':
+          description: Invalid file or validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  error:
+                    type: string
+                    example: No file uploaded
+
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /tmf-api/resourceInventoryManagement/v4/resource/{id}:
+    get:
+      summary: Get resource by ID
+      description: Retrieve a specific resource by its ID
+      operationId: getResourceById
+      tags:
+        - Resources
+      parameters:
+        - name: id
+          in: path
+          description: Resource ID
+          required: true
+          schema:
+            type: string
+          example: res-1708959234567-abc123def
+
+      responses:
+        '200':
+          description: Resource found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resource'
+
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    patch:
+      summary: Update a resource
+      description: Partially update an existing resource
+      operationId: updateResource
+      tags:
+        - Resources
+      parameters:
+        - name: id
+          in: path
+          description: Resource ID
+          required: true
+          schema:
+            type: string
+          example: res-1708959234567-abc123def
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourceRequest'
+            example:
+              name: Updated Router Name
+              usageState: idle
+              lifecycleState: retiring
+
+      responses:
+        '200':
+          description: Resource updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resource'
+
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      summary: Delete a resource
+      description: Delete a resource from the inventory
+      operationId: deleteResource
+      tags:
+        - Resources
+      parameters:
+        - name: id
+          in: path
+          description: Resource ID
+          required: true
+          schema:
+            type: string
+          example: res-1708959234567-abc123def
+
+      responses:
+        '204':
+          description: Resource deleted successfully
+
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /health:
+    get:
+      summary: Health check
+      description: Check if the service is healthy and responsive
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  message:
+                    type: string
+                    example: ODA Resource Inventory Component is running
+
+components:
+  schemas:
+    Resource:
+      type: object
+      description: A resource in the inventory
+      required:
+        - id
+        - name
+        - category
+        - resourceType
+      properties:
+        id:
+          type: string
+          description: Unique resource identifier
+          example: res-1708959234567-abc123def
+
+        href:
+          type: string
+          description: Resource URL reference
+          example: /tmf-api/resourceInventoryManagement/v4/resource/res-1708959234567-abc123def
+
+        name:
+          type: string
+          description: Resource name
+          example: Core Router 01
+          maxLength: 255
+
+        description:
+          type: string
+          description: Resource description
+          example: Main core router in data center
+
+        category:
+          type: string
+          description: Resource category
+          enum:
+            - Physical
+            - Logical
+          example: Physical
+
+        resourceType:
+          type: string
+          description: Type of resource
+          enum:
+            - Router
+            - Switch
+            - BTS
+            - OLT
+            - IP
+            - VLAN
+            - Circuit
+          example: Router
+
+        operationalState:
+          type: string
+          description: Current operational state
+          enum:
+            - enable
+            - disable
+          default: enable
+          example: enable
+
+        administrativeState:
+          type: string
+          description: Administrative state
+          enum:
+            - locked
+            - unlocked
+            - shuttingDown
+          default: unlocked
+          example: unlocked
+
+        usageState:
+          type: string
+          description: Current usage state
+          enum:
+            - idle
+            - active
+            - busy
+          default: idle
+          example: active
+
+        lifecycleState:
+          type: string
+          description: Lifecycle phase
+          enum:
+            - planning
+            - installing
+            - operating
+            - retiring
+          default: operating
+          example: operating
+
+        place:
+          $ref: '#/components/schemas/Place'
+
+        resourceSpecification:
+          $ref: '#/components/schemas/ResourceSpecificationRef'
+
+        resourceRelationship:
+          type: array
+          description: Relationships with other resources
+          items:
+            $ref: '#/components/schemas/ResourceRelationship'
+
+        characteristic:
+          type: array
+          description: Custom attributes
+          items:
+            $ref: '#/components/schemas/Characteristic'
+
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: '2024-02-26T10:30:45.123Z'
+
+        lastModifiedDate:
+          type: string
+          format: date-time
+          description: Last modification timestamp
+          example: '2024-02-26T14:45:30.456Z'
+
+        '@type':
+          type: string
+          description: TMF metadata type
+          default: Resource
+          example: Resource
+
+        '@baseType':
+          type: string
+          description: TMF base type
+          example: null
+
+        '@schemaLocation':
+          type: string
+          description: TMF schema location
+          example: null
+
+    ResourceRequest:
+      type: object
+      description: Resource data for create/update operations
+      required:
+        - name
+        - category
+        - resourceType
+      properties:
+        name:
+          type: string
+          description: Resource name
+          maxLength: 255
+
+        description:
+          type: string
+          description: Resource description
+
+        category:
+          type: string
+          enum:
+            - Physical
+            - Logical
+
+        resourceType:
+          type: string
+          enum:
+            - Router
+            - Switch
+            - BTS
+            - OLT
+            - IP
+            - VLAN
+            - Circuit
+
+        operationalState:
+          type: string
+          enum:
+            - enable
+            - disable
+
+        administrativeState:
+          type: string
+          enum:
+            - locked
+            - unlocked
+            - shuttingDown
+
+        usageState:
+          type: string
+          enum:
+            - idle
+            - active
+            - busy
+
+        lifecycleState:
+          type: string
+          enum:
+            - planning
+            - installing
+            - operating
+            - retiring
+
+        place:
+          $ref: '#/components/schemas/Place'
+
+        resourceSpecification:
+          $ref: '#/components/schemas/ResourceSpecificationRef'
+
+        resourceRelationship:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceRelationship'
+
+        characteristic:
+          type: array
+          items:
+            $ref: '#/components/schemas/Characteristic'
+
+    ResourceList:
+      type: object
+      description: List of resources with pagination
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Resource'
+
+        offset:
+          type: integer
+          description: Current pagination offset
+          example: 0
+
+        limit:
+          type: integer
+          description: Items per page
+          example: 10
+
+        total:
+          type: integer
+          description: Total number of resources
+          example: 42
+
+        '@type':
+          type: string
+          default: ResourceList
+
+    Place:
+      type: object
+      description: Location information
+      properties:
+        id:
+          type: string
+          example: LOC-001
+
+        name:
+          type: string
+          example: Data Center A
+
+        role:
+          type: string
+          example: Primary Site
+
+    ResourceSpecificationRef:
+      type: object
+      description: Reference to a resource specification
+      properties:
+        id:
+          type: string
+
+        href:
+          type: string
+
+        name:
+          type: string
+
+    ResourceRelationship:
+      type: object
+      description: Relationship between resources
+      required:
+        - relationshipType
+      properties:
+        id:
+          type: string
+
+        relationshipType:
+          type: string
+          enum:
+            - contains
+            - connectedTo
+            - dependsOn
+
+        resource:
+          type: object
+          properties:
+            id:
+              type: string
+            href:
+              type: string
+            name:
+              type: string
+
+    Characteristic:
+      type: object
+      description: Custom attribute
+      properties:
+        name:
+          type: string
+
+        value:
+          oneOf:
+            - type: string
+            - type: number
+            - type: boolean
+            - type: object
+
+        valueType:
+          type: string
+
+    Error:
+      type: object
+      description: Error response
+      properties:
+        message:
+          type: string
+          example: Resource not found
+
+        code:
+          type: string
+          example: NOT_FOUND
+
+        timestamp:
+          type: string
+          format: date-time
